@@ -1,5 +1,8 @@
 # IDO Pool
 
+TODO: this is the original program description.
+
+```
 This example provides an IDO mechanism that prevents giving "free money" to the quickest bidder. The IDO is selling a fixed amount of 🍉 tokens, guarantees the same price for every user and has three phases:
 
 1. Users can freely deposit and withdraw 💵 tokens into the pool.
@@ -7,6 +10,14 @@ This example provides an IDO mechanism that prevents giving "free money" to the 
 3. They can only withdraw 🍉 tokens pro-rata to their share of deposited 💵 tokens to the total amount deposited by all users.
 
 The first two phases should last at least 24 hours each, the last one is unlimited.
+```
+
+The task is to modify the program such that the 2nd stage of users being able to withdraw 💵 is removed and there's a maximum price of 🍉 that ends the ido once reached. In short, the new phases will be:
+
+1. Users can freely deposit and withdraw 💵 tokens into the pool until either the time limit is reached or the set maximum price is reached.
+2. They can only withdraw 🍉 tokens pro-rata to their share of deposited 💵 tokens to the total amount deposited by all users.
+
+The admin of the ido should be able to set this maximum price and time limit for phase 1.
 
 ## Setup
 
