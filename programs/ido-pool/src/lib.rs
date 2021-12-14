@@ -4,6 +4,8 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program_option::COption;
 use anchor_spl::token::{self, Burn, Mint, MintTo, TokenAccount, Transfer};
+use std::cmp;
+use std::convert::TryInto;
 use std::str::FromStr;
 
 const ALLOWED_DEPLOYER: &str = "3FadrT6JsE5GSrLFUy4qPvA26EMBzAHuG5uvYWcCWVCa";
@@ -16,19 +18,16 @@ pub mod ido_pool {
     pub fn initialize_pool(
         ctx: Context<InitializePool>,
         num_ido_tokens: u64,
+        max_usdc_tokens: u64,
         nonce: u8,
         start_ido_ts: i64,
-        end_deposits_ts: i64,
         end_ido_ts: i64,
         withdraw_melon_ts: i64,
     ) -> Result<()> {
-        if !(start_ido_ts < end_deposits_ts
-            && end_deposits_ts < end_ido_ts
-            && end_ido_ts < withdraw_melon_ts)
-        {
+        if !(start_ido_ts < end_ido_ts && end_ido_ts < withdraw_melon_ts) {
             return Err(ErrorCode::SeqTimes.into());
         }
-        if num_ido_tokens == 0 {
+        if num_ido_tokens == 0 || max_usdc_tokens == 0 {
             return Err(ErrorCode::InvalidParam.into());
         }
 
@@ -44,8 +43,8 @@ pub mod ido_pool {
         pool_account.distribution_authority = *ctx.accounts.distribution_authority.key;
         pool_account.nonce = nonce;
         pool_account.num_ido_tokens = num_ido_tokens;
+        pool_account.max_usdc_tokens = max_usdc_tokens;
         pool_account.start_ido_ts = start_ido_ts;
-        pool_account.end_deposits_ts = end_deposits_ts;
         pool_account.end_ido_ts = end_ido_ts;
         pool_account.withdraw_melon_ts = withdraw_melon_ts;
 
@@ -65,14 +64,10 @@ pub mod ido_pool {
     pub fn modify_ido_time(
         ctx: Context<ModifyIdoTime>,
         start_ido_ts: i64,
-        end_deposits_ts: i64,
         end_ido_ts: i64,
         withdraw_melon_ts: i64,
     ) -> Result<()> {
-        if !(start_ido_ts < end_deposits_ts
-            && end_deposits_ts < end_ido_ts
-            && end_ido_ts < withdraw_melon_ts)
-        {
+        if !(start_ido_ts < end_ido_ts && end_ido_ts < withdraw_melon_ts) {
             return Err(ErrorCode::SeqTimes.into());
         }
         if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
@@ -81,13 +76,28 @@ pub mod ido_pool {
         }
         let pool_account = &mut ctx.accounts.pool_account;
         pool_account.start_ido_ts = start_ido_ts;
-        pool_account.end_deposits_ts = end_deposits_ts;
         pool_account.end_ido_ts = end_ido_ts;
         pool_account.withdraw_melon_ts = withdraw_melon_ts;
         Ok(())
     }
 
-    #[access_control(unrestricted_phase(&ctx))]
+    pub fn modify_max_usdc_tokens(
+        ctx: Context<ModifyMaxUsdcTokens>,
+        max_usdc_tokens: u64,
+    ) -> Result<()> {
+        if max_usdc_tokens == 0 {
+            return Err(ErrorCode::InvalidParam.into());
+        }
+        if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
+        {
+            return Err(ErrorCode::InvalidParam.into());
+        }
+        let pool_account = &mut ctx.accounts.pool_account;
+        pool_account.max_usdc_tokens = max_usdc_tokens;
+        Ok(())
+    }
+
+    #[access_control(unrestricted_phase(&ctx.accounts.pool_account, &ctx.accounts.clock))]
     pub fn exchange_usdc_for_redeemable(
         ctx: Context<ExchangeUsdcForRedeemable>,
         amount: u64,
@@ -95,6 +105,13 @@ pub mod ido_pool {
         if amount == 0 {
             return Err(ErrorCode::InvalidParam.into());
         }
+
+        // Determine exchangeable usdc amount for user.
+        let amount = cmp::min(
+            amount,
+            ctx.accounts.pool_account.max_usdc_tokens - ctx.accounts.pool_account.num_usdc_tokens,
+        );
+
         // While token::transfer will check this, we prefer a verbose err msg.
         if ctx.accounts.user_usdc.amount < amount {
             return Err(ErrorCode::LowUsdc.into());
@@ -109,6 +126,14 @@ pub mod ido_pool {
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         token::transfer(cpi_ctx, amount)?;
+
+        // Update USDC amounts on the pool account
+        ctx.accounts.pool_account.num_usdc_tokens = (ctx.accounts.pool_account.num_usdc_tokens
+            as u128)
+            .checked_add(amount as u128)
+            .unwrap()
+            .try_into()
+            .unwrap();
 
         // Mint Redeemable to user Redeemable account.
         let seeds = &[
@@ -128,7 +153,7 @@ pub mod ido_pool {
         Ok(())
     }
 
-    #[access_control(withdraw_only_phase(&ctx))]
+    #[access_control(unrestricted_phase(&ctx.accounts.pool_account, &ctx.accounts.clock))]
     pub fn exchange_redeemable_for_usdc(
         ctx: Context<ExchangeRedeemableForUsdc>,
         amount: u64,
@@ -136,6 +161,7 @@ pub mod ido_pool {
         if amount == 0 {
             return Err(ErrorCode::InvalidParam.into());
         }
+
         // While token::burn will check this, we prefer a verbose err msg.
         if ctx.accounts.user_redeemable.amount < amount {
             return Err(ErrorCode::LowRedeemable.into());
@@ -166,6 +192,14 @@ pub mod ido_pool {
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
         token::transfer(cpi_ctx, amount)?;
 
+        // Update USDC amounts on the pool account
+        ctx.accounts.pool_account.num_usdc_tokens = (ctx.accounts.pool_account.num_usdc_tokens
+            as u128)
+            .checked_sub(amount as u128)
+            .unwrap()
+            .try_into()
+            .unwrap();
+
         Ok(())
     }
 
@@ -183,11 +217,16 @@ pub mod ido_pool {
         }
 
         // Calculate watermelon tokens due.
-        let watermelon_amount = (amount as u128)
-            .checked_mul(ctx.accounts.pool_watermelon.amount as u128)
-            .unwrap()
-            .checked_div(ctx.accounts.redeemable_mint.supply as u128)
-            .unwrap();
+        let watermelon_amount = cmp::min(
+            ctx.accounts.pool_watermelon.amount,
+            (amount as u128)
+                .checked_mul(ctx.accounts.pool_watermelon.amount as u128)
+                .unwrap()
+                .checked_div(ctx.accounts.redeemable_mint.supply as u128)
+                .unwrap()
+                .try_into()
+                .unwrap(),
+        );
 
         // Burn the user's redeemable tokens.
         let cpi_accounts = Burn {
@@ -376,8 +415,19 @@ pub struct WithdrawPoolUsdc<'info> {
     pub token_program: AccountInfo<'info>,
     pub clock: Sysvar<'info, Clock>,
 }
+
 #[derive(Accounts)]
 pub struct ModifyIdoTime<'info> {
+    #[account(mut, has_one = distribution_authority)]
+    pub pool_account: ProgramAccount<'info, PoolAccount>,
+    #[account(signer)]
+    pub distribution_authority: AccountInfo<'info>,
+    #[account(signer)]
+    pub payer: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ModifyMaxUsdcTokens<'info> {
     #[account(mut, has_one = distribution_authority)]
     pub pool_account: ProgramAccount<'info, PoolAccount>,
     #[account(signer)]
@@ -395,8 +445,9 @@ pub struct PoolAccount {
     pub distribution_authority: Pubkey,
     pub nonce: u8,
     pub num_ido_tokens: u64,
+    pub max_usdc_tokens: u64,
+    pub num_usdc_tokens: u64,
     pub start_ido_ts: i64,
-    pub end_deposits_ts: i64,
     pub end_ido_ts: i64,
     pub withdraw_melon_ts: i64,
 }
@@ -425,6 +476,8 @@ pub enum ErrorCode {
     InvalidNonce, //309, 0x135
     #[msg("Invalid param")]
     InvalidParam, //310, 0x136
+    #[msg("Exceed USDC")]
+    ExceedUsdc, // 311, 0x137
 }
 
 // Access control modifiers.
@@ -438,21 +491,16 @@ fn future_start_time<'info>(ctx: &Context<InitializePool<'info>>, start_ido_ts: 
 }
 
 // Asserts the IDO is in the first phase.
-fn unrestricted_phase<'info>(ctx: &Context<ExchangeUsdcForRedeemable<'info>>) -> Result<()> {
-    if !(ctx.accounts.pool_account.start_ido_ts < ctx.accounts.clock.unix_timestamp) {
+fn unrestricted_phase<'info>(
+    pool_account: &ProgramAccount<'info, PoolAccount>,
+    clock: &Sysvar<'info, Clock>,
+) -> Result<()> {
+    if !(pool_account.start_ido_ts < clock.unix_timestamp) {
         return Err(ErrorCode::StartIdoTime.into());
-    } else if !(ctx.accounts.clock.unix_timestamp < ctx.accounts.pool_account.end_deposits_ts) {
+    } else if !(clock.unix_timestamp < pool_account.end_ido_ts) {
         return Err(ErrorCode::EndDepositsTime.into());
-    }
-    Ok(())
-}
-
-// Asserts the IDO is in the second phase.
-fn withdraw_only_phase(ctx: &Context<ExchangeRedeemableForUsdc>) -> Result<()> {
-    if !(ctx.accounts.pool_account.start_ido_ts < ctx.accounts.clock.unix_timestamp) {
-        return Err(ErrorCode::StartIdoTime.into());
-    } else if !(ctx.accounts.clock.unix_timestamp < ctx.accounts.pool_account.end_ido_ts) {
-        return Err(ErrorCode::EndIdoTime.into());
+    } else if !(pool_account.num_usdc_tokens < pool_account.max_usdc_tokens) {
+        return Err(ErrorCode::ExceedUsdc.into());
     }
     Ok(())
 }
@@ -462,7 +510,9 @@ fn ido_over<'info>(
     pool_account: &ProgramAccount<'info, PoolAccount>,
     clock: &Sysvar<'info, Clock>,
 ) -> Result<()> {
-    if !(pool_account.withdraw_melon_ts < clock.unix_timestamp) {
+    if pool_account.num_usdc_tokens >= pool_account.max_usdc_tokens {
+        return Ok(());
+    } else if !(pool_account.withdraw_melon_ts < clock.unix_timestamp) {
         return Err(ErrorCode::IdoNotOver.into());
     }
     Ok(())
