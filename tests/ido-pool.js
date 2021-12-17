@@ -343,10 +343,10 @@ describe('ido-pool', () => {
   let remainingWatermelon = null;
 
   it('Exchanges user Redeemable tokens for watermelon', async () => {
-    // Wait until the IDO has opened.
-    if (Date.now() < withdrawTs.toNumber() * 1000) {
-      await sleep(withdrawTs.toNumber() * 1000 - Date.now() + 2000);
-    }
+    // // Wait until the IDO has opened.
+    // if (Date.now() < withdrawTs.toNumber() * 1000) {
+    //   await sleep(withdrawTs.toNumber() * 1000 - Date.now() + 2000);
+    // }
     let firstUserRedeemable = firstDeposit.sub(firstWithdrawal);
     userWatermelon = await createTokenAccount(
       provider,
