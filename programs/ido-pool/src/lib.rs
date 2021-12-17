@@ -7,8 +7,17 @@ use anchor_spl::token::{self, Token, Burn, Mint, MintTo, TokenAccount, Transfer}
 use std::cmp;
 use std::convert::TryInto;
 use std::str::FromStr;
-use anchor_spl::associated_token::ID;
 
+#[cfg(feature = "local-testing")]
+declare_id!("3zSwHpEF8svwihadvnx7q2EagTyW1tvwn354gzvF5Zh4");
+
+#[cfg(not(feature = "local-testing"))]
+declare_id!("3zSwHpEF8svwihadvnx7q2EagTyW1tvwn354gzvF5Zh4");
+
+#[cfg(feature = "local-testing")]
+const ALLOWED_DEPLOYER: &str = "52ANpnRU92jw3gnE1ut2nPhhmmcm5ThvjXMbScU7Yys9";
+
+#[cfg(not(feature = "local-testing"))]
 const ALLOWED_DEPLOYER: &str = "3FadrT6JsE5GSrLFUy4qPvA26EMBzAHuG5uvYWcCWVCa";
 
 #[program]
@@ -284,31 +293,27 @@ pub mod ido_pool {
 
 #[derive(Accounts)]
 pub struct InitializePool<'info> {
-    #[account(
-        init, 
-        payer = payer
-    )]
-    pub pool_account: Account<'info, PoolAccount>,
+    #[account(zero)]
+    pub pool_account: Box<Account<'info, PoolAccount>>,
     pub pool_signer: AccountInfo<'info>,
     #[account(
         constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key),
         constraint = redeemable_mint.supply == 0
     )]
-    pub redeemable_mint: Account<'info, Mint>,
+    pub redeemable_mint: Box<Account<'info, Mint>>,
     #[account(constraint = usdc_mint.decimals == redeemable_mint.decimals)]
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
     #[account(constraint = pool_watermelon.mint == *watermelon_mint.to_account_info().key)]
-    pub watermelon_mint: Account<'info, Mint>,
+    pub watermelon_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = pool_watermelon.owner == *pool_signer.key)]
-    pub pool_watermelon: Account<'info, TokenAccount>,
+    pub pool_watermelon: Box<Account<'info, TokenAccount>>,
     #[account(constraint = pool_usdc.owner == *pool_signer.key)]
-    pub pool_usdc: Account<'info, TokenAccount>,
-    #[account(signer, constraint =  watermelon_mint.mint_authority == COption::Some(*distribution_authority.key))]
-    pub distribution_authority: AccountInfo<'info>,
-    #[account(signer)]
-    pub payer: AccountInfo<'info>,
+    pub pool_usdc: Box<Account<'info, TokenAccount>>,
+    #[account(constraint =  watermelon_mint.mint_authority == COption::Some(*distribution_authority.key))]
+    pub distribution_authority: Signer<'info>,
+    pub payer: Signer<'info>,
     #[account(mut)]
-    pub creator_watermelon: Account<'info, TokenAccount>,
+    pub creator_watermelon: Box<Account<'info, TokenAccount>>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub rent: Sysvar<'info, Rent>,
