@@ -336,10 +336,11 @@ impl<'info> InitializePool<'info> {
 #[derive(Accounts)]
 pub struct ExchangeUsdcForRedeemable<'info> {
     #[account(
+        mut,
         has_one = redeemable_mint, 
         has_one = pool_usdc
     )]
-    pub pool_account: Account<'info, PoolAccount>,
+    pub pool_account: Box<Account<'info, PoolAccount>>,
     #[account(seeds = [
         pool_account.watermelon_mint.as_ref()],
         bump=pool_account.nonce
@@ -349,21 +350,21 @@ pub struct ExchangeUsdcForRedeemable<'info> {
         mut,
         constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key)
     )]
-    pub redeemable_mint: Account<'info, Mint>,
+    pub redeemable_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = pool_usdc.owner == *pool_signer.key)]
-    pub pool_usdc: Account<'info, TokenAccount>,
+    pub pool_usdc: Box<Account<'info, TokenAccount>>,
     pub user_authority: Signer<'info>,
     #[account(mut, constraint = user_usdc.owner == *user_authority.key)]
-    pub user_usdc: Account<'info, TokenAccount>,
+    pub user_usdc: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
-    pub user_redeemable: Account<'info, TokenAccount>,
+    pub user_redeemable: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
 pub struct ExchangeRedeemableForUsdc<'info> {
-    #[account(has_one = redeemable_mint, has_one = pool_usdc)]
-    pub pool_account: Account<'info, PoolAccount>,
+    #[account(mut, has_one = redeemable_mint, has_one = pool_usdc)]
+    pub pool_account: Box<Account<'info, PoolAccount>>,
     #[account(seeds = [
         pool_account.watermelon_mint.as_ref()],
         bump=pool_account.nonce
@@ -373,21 +374,21 @@ pub struct ExchangeRedeemableForUsdc<'info> {
         mut,
         constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key)
     )]
-    pub redeemable_mint: Account<'info, Mint>,
+    pub redeemable_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = pool_usdc.owner == *pool_signer.key)]
-    pub pool_usdc: Account<'info, TokenAccount>,
+    pub pool_usdc: Box<Account<'info, TokenAccount>>,
     pub user_authority: Signer<'info>,
     #[account(mut, constraint = user_usdc.owner == *user_authority.key)]
-    pub user_usdc: Account<'info, TokenAccount>,
+    pub user_usdc: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
-    pub user_redeemable: Account<'info, TokenAccount>,
+    pub user_redeemable: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
 pub struct ExchangeRedeemableForWatermelon<'info> {
     #[account(has_one = redeemable_mint, has_one = pool_watermelon)]
-    pub pool_account: Account<'info, PoolAccount>,
+    pub pool_account: Box<Account<'info, PoolAccount>>,
     #[account(seeds = [
         pool_account.watermelon_mint.as_ref()],
         bump=pool_account.nonce
@@ -397,40 +398,40 @@ pub struct ExchangeRedeemableForWatermelon<'info> {
         mut,
         constraint = redeemable_mint.mint_authority == COption::Some(*pool_signer.key)
     )]
-    pub redeemable_mint: Account<'info, Mint>,
+    pub redeemable_mint: Box<Account<'info, Mint>>,
     #[account(mut, constraint = pool_watermelon.owner == *pool_signer.key)]
-    pub pool_watermelon: Account<'info, TokenAccount>,
+    pub pool_watermelon: Box<Account<'info, TokenAccount>>,
     #[account(signer)]
     pub user_authority: AccountInfo<'info>,
     #[account(mut, constraint = user_watermelon.owner == *user_authority.key)]
-    pub user_watermelon: Account<'info, TokenAccount>,
+    pub user_watermelon: Box<Account<'info, TokenAccount>>,
     #[account(mut, constraint = user_redeemable.owner == *user_authority.key)]
-    pub user_redeemable: Account<'info, TokenAccount>,
+    pub user_redeemable: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
 pub struct WithdrawPoolUsdc<'info> {
     #[account(has_one = pool_usdc, has_one = distribution_authority)]
-    pub pool_account: Account<'info, PoolAccount>,
+    pub pool_account: Box<Account<'info, PoolAccount>>,
     #[account(seeds = [
         pool_account.watermelon_mint.as_ref()],
         bump=pool_account.nonce
     )]
     pub pool_signer: AccountInfo<'info>,
     #[account(mut, constraint = pool_usdc.owner == *pool_signer.key)]
-    pub pool_usdc: Account<'info, TokenAccount>,
+    pub pool_usdc: Box<Account<'info, TokenAccount>>,
     pub distribution_authority: Signer<'info>,
     pub payer: Signer<'info>,
     #[account(mut)]
-    pub creator_usdc: Account<'info, TokenAccount>,
+    pub creator_usdc: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
 pub struct ModifyIdoTime<'info> {
     #[account(mut, has_one = distribution_authority)]
-    pub pool_account: Account<'info, PoolAccount>,
+    pub pool_account: Box<Account<'info, PoolAccount>>,
     #[account(signer)]
     pub distribution_authority: AccountInfo<'info>,
     #[account(signer)]
@@ -440,7 +441,7 @@ pub struct ModifyIdoTime<'info> {
 #[derive(Accounts)]
 pub struct ModifyMaxUsdcTokens<'info> {
     #[account(mut, has_one = distribution_authority)]
-    pub pool_account: Account<'info, PoolAccount>,
+    pub pool_account: Box<Account<'info, PoolAccount>>,
     #[account(signer)]
     pub distribution_authority: AccountInfo<'info>,
     #[account(signer)]
