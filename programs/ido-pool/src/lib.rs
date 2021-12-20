@@ -71,6 +71,7 @@ pub mod ido_pool {
         Ok(())
     }
 
+    #[access_control(future_start_time(ctx.accounts.pool_account.start_ido_ts) future_start_time(start_ido_ts))]
     pub fn modify_ido_time(
         ctx: Context<ModifyIdoTime>,
         start_ido_ts: i64,
