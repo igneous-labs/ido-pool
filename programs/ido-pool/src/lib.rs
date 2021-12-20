@@ -140,12 +140,7 @@ pub mod ido_pool {
         token::transfer(cpi_ctx, amount)?;
 
         // Update USDC amounts on the pool account
-        ctx.accounts.pool_account.num_usdc_tokens = (ctx.accounts.pool_account.num_usdc_tokens
-            as u128)
-            .checked_add(amount as u128)
-            .unwrap()
-            .try_into()
-            .unwrap();
+        ctx.accounts.pool_account.num_usdc_tokens = ctx.accounts.pool_account.num_usdc_tokens.checked_add(amount).unwrap();
 
         // Mint Redeemable to user Redeemable account.
         let seeds = &[
@@ -205,11 +200,8 @@ pub mod ido_pool {
         token::transfer(cpi_ctx, amount)?;
 
         // Update USDC amounts on the pool account
-        ctx.accounts.pool_account.num_usdc_tokens = (ctx.accounts.pool_account.num_usdc_tokens
-            as u128)
-            .checked_sub(amount as u128)
-            .unwrap()
-            .try_into()
+        ctx.accounts.pool_account.num_usdc_tokens = ctx.accounts.pool_account.num_usdc_tokens
+            .checked_sub(amount)
             .unwrap();
 
         Ok(())
