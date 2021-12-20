@@ -92,6 +92,7 @@ pub mod ido_pool {
         Ok(())
     }
 
+    #[access_control(future_start_time(ctx.accounts.pool_account.start_ido_ts))]
     pub fn modify_max_usdc_tokens(
         ctx: Context<ModifyMaxUsdcTokens>,
         max_usdc_tokens: u64,
