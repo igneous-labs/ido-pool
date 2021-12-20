@@ -77,9 +77,9 @@ describe('ido-pool', () => {
   let poolUsdc = null; //owner: poolSigner
   let poolAccount = null; //generated keypair
 
-  let startIdoTs = null;
-  let endDepositsTs = null;
-  let endIdoTs = null;
+  var startIdoTs = null;
+  var endIdoTs = null;
+  var withdrawTs = null;
 
   it('Initializes the IDO pool', async () => {
     // We use the watermelon mint address as the seed, could use something else though.
@@ -100,11 +100,13 @@ describe('ido-pool', () => {
     poolUsdc = await createTokenAccount(provider, usdcMint, poolSigner);
 
     poolAccount = anchor.web3.Keypair.generate();
+
     const nowBn = new anchor.BN(Date.now() / 1000);
     startIdoTs = nowBn.add(new anchor.BN(5));
-    endDepositsTs = nowBn.add(new anchor.BN(10));
     endIdoTs = nowBn.add(new anchor.BN(15));
     withdrawTs = nowBn.add(new anchor.BN(19));
+
+    const maxUsdcAmount = new anchor.BN(40000000);
 
     // Atomically create the new account and initialize it with the program.
     await program.rpc.initializePool(
@@ -142,6 +144,36 @@ describe('ido-pool', () => {
       creatorWatermelon
     );
     assert.ok(creators_watermelon_account.amount.eq(new anchor.BN(0)));
+  });
+
+  it('Modify ido time', async () => {
+    startIdoTs = startIdoTs.add(new anchor.BN(1));
+    endIdoTs = endIdoTs.add(new anchor.BN(1));
+    withdrawTs = withdrawTs.add(new anchor.BN(1));
+
+    await program.rpc.modifyIdoTime(startIdoTs, endIdoTs, withdrawTs, {
+      accounts: {
+        poolAccount: poolAccount.publicKey,
+        distributionAuthority: provider.wallet.publicKey,
+        payer: provider.wallet.publicKey,
+      },
+    });
+    const pool = await program.account.poolAccount.fetch(poolAccount.publicKey);
+    assert.equal(pool.startIdoTs.toString(), startIdoTs.toString());
+    assert.equal(pool.endIdoTs.toString(), endIdoTs.toString());
+    assert.equal(pool.withdrawMelonTs.toString(), withdrawTs.toString());
+  });
+
+  it('Modify max usdc tokens', async () => {
+    await program.rpc.modifyMaxUsdcTokens(maxUsdcAmount, {
+      accounts: {
+        poolAccount: poolAccount.publicKey,
+        distributionAuthority: provider.wallet.publicKey,
+        payer: provider.wallet.publicKey,
+      },
+    });
+    const pool = await program.account.poolAccount.fetch(poolAccount.publicKey);
+    assert.equal(pool.maxUsdcTokens.toString(), maxUsdcAmount.toString());
   });
 
   // We're going to need to start using the associated program account for creating token accounts
@@ -438,34 +470,54 @@ describe('ido-pool', () => {
     assert.ok(creatorUsdcAccount.amount.eq(totalPoolUsdc));
   });
 
-  it('Modify ido time', async () => {
-    await program.rpc.modifyIdoTime(
-      new anchor.BN(1),
-      new anchor.BN(2),
-      new anchor.BN(3),
+  it('Failed modify ido time', async () => {
+    await assert.rejects(
+      async () => {
+        await program.rpc.modifyIdoTime(
+          new anchor.BN(1),
+          new anchor.BN(2),
+          new anchor.BN(3),
+          {
+            accounts: {
+              poolAccount: poolAccount.publicKey,
+              distributionAuthority: provider.wallet.publicKey,
+              payer: provider.wallet.publicKey,
+            },
+          }
+        );
+        const pool = await program.account.poolAccount.fetch(
+          poolAccount.publicKey
+        );
+        assert.equal(pool.startIdoTs.toString(), '1');
+        assert.equal(pool.endIdoTs.toString(), '2');
+        assert.equal(pool.withdrawMelonTs.toString(), '3');
+      },
       {
-        accounts: {
-          poolAccount: poolAccount.publicKey,
-          distributionAuthority: provider.wallet.publicKey,
-          payer: provider.wallet.publicKey,
-        },
+        message:
+          'failed to send transaction: Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1770',
       }
     );
-    const pool = await program.account.poolAccount.fetch(poolAccount.publicKey);
-    assert.equal(pool.startIdoTs.toString(), '1');
-    assert.equal(pool.endIdoTs.toString(), '2');
-    assert.equal(pool.withdrawMelonTs.toString(), '3');
   });
 
-  it('Modify max usdc tokens', async () => {
-    await program.rpc.modifyMaxUsdcTokens(new anchor.BN(100000000), {
-      accounts: {
-        poolAccount: poolAccount.publicKey,
-        distributionAuthority: provider.wallet.publicKey,
-        payer: provider.wallet.publicKey,
+  it('Failed modify max usdc tokens', async () => {
+    await assert.rejects(
+      async () => {
+        await program.rpc.modifyMaxUsdcTokens(new anchor.BN(100000000), {
+          accounts: {
+            poolAccount: poolAccount.publicKey,
+            distributionAuthority: provider.wallet.publicKey,
+            payer: provider.wallet.publicKey,
+          },
+        });
+        const pool = await program.account.poolAccount.fetch(
+          poolAccount.publicKey
+        );
+        assert.equal(pool.maxUsdcTokens.toString(), '100000000');
       },
-    });
-    const pool = await program.account.poolAccount.fetch(poolAccount.publicKey);
-    assert.equal(pool.maxUsdcTokens.toString(), '100000000');
+      {
+        message:
+          'failed to send transaction: Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1770',
+      }
+    );
   });
 });
