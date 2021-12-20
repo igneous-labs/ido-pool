@@ -462,29 +462,29 @@ pub struct PoolAccount {
 #[error]
 pub enum ErrorCode {
     #[msg("IDO must start in the future")]
-    IdoFuture, //300, 0x12c
+    IdoFuture, // 6000, 0x1770
     #[msg("IDO times are non-sequential")]
-    SeqTimes, //301, 0x12d
+    SeqTimes, // 6001, 0x1771
     #[msg("IDO has not started")]
-    StartIdoTime, //302, 0x12e
+    StartIdoTime, // 6002, 0x1772
     #[msg("Deposits period has ended")]
-    EndDepositsTime, //303, 0x12f
+    EndDepositsTime, // 6003, 0x1773
     #[msg("IDO has ended")]
-    EndIdoTime, //304, 0x130
+    EndIdoTime, // 6004, 0x1774
     #[msg("IDO has not finished yet")]
-    IdoNotOver, //305, 0x131
+    IdoNotOver, // 6005, 0x1775
     #[msg("Insufficient USDC")]
-    LowUsdc, //306, 0x132
+    LowUsdc, // 6006, 0x1776
     #[msg("Insufficient redeemable tokens")]
-    LowRedeemable, //307, 0x133
+    LowRedeemable, // 6007, 0x1777
     #[msg("USDC total and redeemable total don't match")]
-    UsdcNotEqRedeem, //308, 0x134
+    UsdcNotEqRedeem, // 6008, 0x1778
     #[msg("Given nonce is invalid")]
-    InvalidNonce, //309, 0x135
+    InvalidNonce, // 6009, 0x1779
     #[msg("Invalid param")]
-    InvalidParam, //310, 0x136
+    InvalidParam, // 6010, 0x177A
     #[msg("Exceed USDC")]
-    ExceedUsdc, // 311, 0x137
+    ExceedUsdc, // 6011, 0x177B
 }
 
 // Access control modifiers.
