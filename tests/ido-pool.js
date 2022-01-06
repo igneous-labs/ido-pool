@@ -132,9 +132,9 @@ describe('ido-pool', () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
         },
-        instructions: [
-          await program.account.poolAccount.createInstruction(poolAccount),
-        ],
+        // instructions: [
+        //   await program.account.poolAccount.createInstruction(poolAccount),
+        // ],
         signers: [poolAccount],
       }
     );

@@ -7,6 +7,7 @@ use anchor_spl::token::{self, Token, Burn, Mint, MintTo, TokenAccount, Transfer}
 use std::cmp;
 use std::convert::TryInto;
 use std::str::FromStr;
+use std::mem::size_of;
 
 #[cfg(feature = "local-testing")]
 declare_id!("3zSwHpEF8svwihadvnx7q2EagTyW1tvwn354gzvF5Zh4");
@@ -287,7 +288,11 @@ pub mod ido_pool {
 
 #[derive(Accounts)]
 pub struct InitializePool<'info> {
-    #[account(zero)]
+    #[account(
+        init, 
+        payer = payer, 
+        space = PoolAccount::LEN,
+    )]
     pub pool_account: Box<Account<'info, PoolAccount>>,
     pub pool_signer: AccountInfo<'info>,
     #[account(
@@ -440,6 +445,14 @@ pub struct ModifyMaxUsdcTokens<'info> {
     pub distribution_authority: AccountInfo<'info>,
     #[account(signer)]
     pub payer: AccountInfo<'info>,
+}
+
+pub trait AnchorLen {
+    const LEN: usize;
+}
+
+impl<T: AccountSerialize + AccountSerialize> AnchorLen for T {
+    const LEN: usize = 8 + size_of::<Self>();
 }
 
 #[account]
