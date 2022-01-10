@@ -2,7 +2,9 @@ const anchor = require("@project-serum/anchor");
 const serum = require("@project-serum/common");
 const { TOKEN_PROGRAM_ID } = require("@solana/spl-token");
 const yargs = require('yargs/yargs');
-const { hideBin } = require('yargs/helpers')
+const { hideBin } = require('yargs/helpers');
+const IDL = require("../target/idl/ido_pool.json");
+const { PublicKey } = require("@solana/web3.js");
 
 process.env.ANCHOR_PROVIDER_URL = "http://localhost:8899";
 process.env.ANCHOR_WALLET = `${process.env.HOME}/.config/solana/id.json`;
@@ -10,7 +12,11 @@ const provider = anchor.Provider.env();
 // Configure the client to use the local cluster.
 anchor.setProvider(provider);
 
-const program = anchor.workspace.IdoPool;
+const program = new anchor.Program(
+  IDL,
+  new PublicKey("3zSwHpEF8svwihadvnx7q2EagTyW1tvwn354gzvF5Zh4"),
+  provider,
+)
 
 async function initPool(
   usdcMint, watermelonMint, creatorWatermelon, watermelonIdoAmount, usdcMaxAmount,
@@ -34,12 +40,12 @@ async function initPool(
   poolAccount = anchor.web3.Keypair.generate();
   distributionAuthority = provider.wallet.publicKey;
 
-
   console.log(
     'initializePool', watermelonIdoAmount.toString(),usdcMaxAmount.toString(),
     nonce, startIdoTs.toString(), endIdoTs.toString(), withdrawMelonTs.toString()
   );
   // Atomically create the new account and initialize it with the program.
+
   await program.rpc.initializePool(
     watermelonIdoAmount,
     usdcMaxAmount,
@@ -52,16 +58,20 @@ async function initPool(
         poolAccount: poolAccount.publicKey,
         poolSigner,
         distributionAuthority,
+        payer: provider.wallet.publicKey,
         creatorWatermelon,
         redeemableMint,
         usdcMint,
+        watermelonMint,
         poolWatermelon,
         poolUsdc,
         tokenProgram: TOKEN_PROGRAM_ID,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-        clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
-        systemProgram: anchor.web3.SystemProgram.programId, 
+        systemProgram: anchor.web3.SystemProgram.programId,
       },
+      instructions: [
+        await program.account.poolAccount.createInstruction(poolAccount),
+      ],
       signers: [poolAccount],
     }
   );
@@ -105,7 +115,7 @@ const cancel_duration = {
 
 yargs(hideBin(process.argv))
   .command(
-    'init <usdc_mint> <watermelon_mint> <watermelon_account> <watermelon_amount>',
+    'init <usdc_mint> <watermelon_mint> <watermelon_account> <watermelon_amount> <max_usdc_amount>',
     'initialize IDO pool',
     y => y
       .positional('usdc_mint', usdc_mint)
