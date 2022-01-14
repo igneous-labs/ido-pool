@@ -116,6 +116,8 @@ describe('ido-pool', () => {
       startIdoTs,
       endIdoTs,
       withdrawTs,
+      // dont care about floor price
+      new anchor.BN(1),
       {
         accounts: {
           poolAccount: poolAccount.publicKey,
@@ -494,7 +496,7 @@ describe('ido-pool', () => {
       },
       {
         message:
-          'failed to send transaction: Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1770',
+          '6000: IDO must start in the future',
       }
     );
   });
@@ -516,7 +518,7 @@ describe('ido-pool', () => {
       },
       {
         message:
-          'failed to send transaction: Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1770',
+          '6000: IDO must start in the future',
       }
     );
   });
