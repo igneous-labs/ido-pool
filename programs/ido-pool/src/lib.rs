@@ -36,7 +36,9 @@ pub mod ido_pool {
         // in number of ido_token atomics per usdc atomic
         // note: this means that if ido_token.decimals <= usdc.decimals,
         // the floor price for the ido_token >= 1 USDC.
-        // which we're ok with since our ido_token.decimals == 9 > usdc.decimals
+        // which we're ok with since our ido_token.decimals == 9 > usdc.decimals.
+        // A little counter-intuitive but a higher value means cheaper because
+        // 1 usdc atomic can exchange for more ido_token atomics
         floor_price: u64,
     ) -> Result<()> {
         if !(start_ido_ts < end_ido_ts && end_ido_ts < withdraw_melon_ts) {
@@ -557,7 +559,7 @@ pub enum ErrorCode {
     #[msg("Exceed USDC")]
     ExceedUsdc, // 6011, 0x177B
     #[msg("Not all buyers have redeemed their tokens yet")]
-    NotAllRedeemed,
+    NotAllRedeemed, // 6012, 0x177C
 }
 
 // Access control modifiers.

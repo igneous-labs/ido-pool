@@ -1,5 +1,5 @@
 {
-  "version": "0.0.0",
+  "version": "0.1.0",
   "name": "ido_pool",
   "instructions": [
     {
@@ -56,6 +56,11 @@
           "isSigner": false
         },
         {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
           "name": "tokenProgram",
           "isMut": false,
           "isSigner": false
@@ -64,16 +69,15 @@
           "name": "rent",
           "isMut": false,
           "isSigner": false
-        },
-        {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
         }
       ],
       "args": [
         {
           "name": "numIdoTokens",
+          "type": "u64"
+        },
+        {
+          "name": "maxUsdcTokens",
           "type": "u64"
         },
         {
@@ -85,16 +89,16 @@
           "type": "i64"
         },
         {
-          "name": "endDepositsTs",
-          "type": "i64"
-        },
-        {
           "name": "endIdoTs",
           "type": "i64"
         },
         {
           "name": "withdrawMelonTs",
           "type": "i64"
+        },
+        {
+          "name": "floorPrice",
+          "type": "u64"
         }
       ]
     },
@@ -123,10 +127,6 @@
           "type": "i64"
         },
         {
-          "name": "endDepositsTs",
-          "type": "i64"
-        },
-        {
           "name": "endIdoTs",
           "type": "i64"
         },
@@ -137,11 +137,37 @@
       ]
     },
     {
+      "name": "modifyMaxUsdcTokens",
+      "accounts": [
+        {
+          "name": "poolAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "distributionAuthority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "maxUsdcTokens",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "exchangeUsdcForRedeemable",
       "accounts": [
         {
           "name": "poolAccount",
-          "isMut": false,
+          "isMut": true,
           "isSigner": false
         },
         {
@@ -176,11 +202,6 @@
         },
         {
           "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "clock",
           "isMut": false,
           "isSigner": false
         }
@@ -197,7 +218,7 @@
       "accounts": [
         {
           "name": "poolAccount",
-          "isMut": false,
+          "isMut": true,
           "isSigner": false
         },
         {
@@ -232,11 +253,6 @@
         },
         {
           "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "clock",
           "isMut": false,
           "isSigner": false
         }
@@ -290,11 +306,6 @@
           "name": "tokenProgram",
           "isMut": false,
           "isSigner": false
-        },
-        {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
         }
       ],
       "args": [
@@ -341,11 +352,6 @@
           "name": "tokenProgram",
           "isMut": false,
           "isSigner": false
-        },
-        {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
         }
       ],
       "args": [
@@ -354,6 +360,52 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "withdrawUnsoldWatermelon",
+      "accounts": [
+        {
+          "name": "poolAccount",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "poolSigner",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "poolWatermelon",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "redeemableMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "distributionAuthority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "destWatermelon",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -391,11 +443,15 @@
             "type": "u64"
           },
           {
-            "name": "startIdoTs",
-            "type": "i64"
+            "name": "maxUsdcTokens",
+            "type": "u64"
           },
           {
-            "name": "endDepositsTs",
+            "name": "numUsdcTokens",
+            "type": "u64"
+          },
+          {
+            "name": "startIdoTs",
             "type": "i64"
           },
           {
@@ -405,6 +461,10 @@
           {
             "name": "withdrawMelonTs",
             "type": "i64"
+          },
+          {
+            "name": "floorPrice",
+            "type": "u64"
           }
         ]
       }
@@ -412,62 +472,69 @@
   ],
   "errors": [
     {
-      "code": 300,
+      "code": 6000,
       "name": "IdoFuture",
       "msg": "IDO must start in the future"
     },
     {
-      "code": 301,
+      "code": 6001,
       "name": "SeqTimes",
       "msg": "IDO times are non-sequential"
     },
     {
-      "code": 302,
+      "code": 6002,
       "name": "StartIdoTime",
       "msg": "IDO has not started"
     },
     {
-      "code": 303,
+      "code": 6003,
       "name": "EndDepositsTime",
       "msg": "Deposits period has ended"
     },
     {
-      "code": 304,
+      "code": 6004,
       "name": "EndIdoTime",
       "msg": "IDO has ended"
     },
     {
-      "code": 305,
+      "code": 6005,
       "name": "IdoNotOver",
       "msg": "IDO has not finished yet"
     },
     {
-      "code": 306,
+      "code": 6006,
       "name": "LowUsdc",
       "msg": "Insufficient USDC"
     },
     {
-      "code": 307,
+      "code": 6007,
       "name": "LowRedeemable",
       "msg": "Insufficient redeemable tokens"
     },
     {
-      "code": 308,
+      "code": 6008,
       "name": "UsdcNotEqRedeem",
       "msg": "USDC total and redeemable total don't match"
     },
     {
-      "code": 309,
+      "code": 6009,
       "name": "InvalidNonce",
       "msg": "Given nonce is invalid"
     },
     {
-      "code": 310,
+      "code": 6010,
       "name": "InvalidParam",
       "msg": "Invalid param"
+    },
+    {
+      "code": 6011,
+      "name": "ExceedUsdc",
+      "msg": "Exceed USDC"
+    },
+    {
+      "code": 6012,
+      "name": "NotAllRedeemed",
+      "msg": "Not all buyers have redeemed their tokens yet"
     }
-  ],
-  "metadata": {
-    "address": "7r2chJLUU87eaM7T1aBi6f7g9BbtbgnwQ9kPbMGxJQWV"
-  }
+  ]
 }
