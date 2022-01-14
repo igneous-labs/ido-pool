@@ -2,3 +2,6 @@ node_modules
 target
 .anchor
 script*.sh
+
+.coderrect
+.test-keypair.json

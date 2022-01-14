@@ -5,4 +5,4 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "mocha -t 20000 tests/ido-pool.js"
+test = "yarn mocha -t 20000 tests/ido-pool.js"

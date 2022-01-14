@@ -45,6 +45,7 @@ spl-token mint $MINT_USDC 1000 $ACC_USDC
 
 ```
 anchor launch
+// Optional: modify process.env.ANCHOR_PROVIDER_URL / process.env.ANCHOR_WALLET in cli/index.js
 node cli/index.js init $MINT_USDC $MINT_MELON $ACC_MELON 10 --deposit_duration 300 --cancel_duration 60 --withdraw_duration 180
 ```
 
