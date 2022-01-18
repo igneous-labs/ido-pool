@@ -3,19 +3,19 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program_option::COption;
-use anchor_spl::token::{self, Token, Burn, Mint, MintTo, TokenAccount, Transfer};
+use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 use std::cmp;
 use std::convert::TryInto;
 use std::str::FromStr;
 
 #[cfg(feature = "local-testing")]
-declare_id!("3zSwHpEF8svwihadvnx7q2EagTyW1tvwn354gzvF5Zh4");
+declare_id!("9Q95bA3Xr6sySTKgVPBXXwv53GWiH7js3M9C5DshSrE4");
 
 #[cfg(not(feature = "local-testing"))]
 declare_id!("3zSwHpEF8svwihadvnx7q2EagTyW1tvwn354gzvF5Zh4");
 
 #[cfg(feature = "local-testing")]
-const ALLOWED_DEPLOYER: &str = "52ANpnRU92jw3gnE1ut2nPhhmmcm5ThvjXMbScU7Yys9";
+const ALLOWED_DEPLOYER: &str = "D93mvQcymygf3NFJwdkBipkg1YvKpd6ejXRWpajLgHTY";
 
 #[cfg(not(feature = "local-testing"))]
 const ALLOWED_DEPLOYER: &str = "3FadrT6JsE5GSrLFUy4qPvA26EMBzAHuG5uvYWcCWVCa";
@@ -33,6 +33,13 @@ pub mod ido_pool {
         start_ido_ts: i64,
         end_ido_ts: i64,
         withdraw_melon_ts: i64,
+        // in number of ido_token atomics per usdc atomic
+        // note: this means that if ido_token.decimals <= usdc.decimals,
+        // the floor price for the ido_token >= 1 USDC.
+        // which we're ok with since our ido_token.decimals == 9 > usdc.decimals.
+        // A little counter-intuitive but a higher value means cheaper because
+        // 1 usdc atomic can exchange for more ido_token atomics
+        floor_price: u64,
     ) -> Result<()> {
         if !(start_ido_ts < end_ido_ts && end_ido_ts < withdraw_melon_ts) {
             return Err(ErrorCode::SeqTimes.into());
@@ -46,6 +53,11 @@ pub mod ido_pool {
         {
             return Err(ErrorCode::InvalidParam.into());
         }
+
+        if floor_price == 0 {
+            return Err(ErrorCode::InvalidParam.into());
+        }
+
         pool_account.redeemable_mint = *ctx.accounts.redeemable_mint.to_account_info().key;
         pool_account.pool_watermelon = *ctx.accounts.pool_watermelon.to_account_info().key;
         pool_account.watermelon_mint = ctx.accounts.pool_watermelon.mint;
@@ -57,6 +69,7 @@ pub mod ido_pool {
         pool_account.start_ido_ts = start_ido_ts;
         pool_account.end_ido_ts = end_ido_ts;
         pool_account.withdraw_melon_ts = withdraw_melon_ts;
+        pool_account.floor_price = floor_price;
 
         // Transfer Watermelon from creator to pool account.
         let cpi_accounts = Transfer {
@@ -140,7 +153,12 @@ pub mod ido_pool {
         token::transfer(cpi_ctx, amount)?;
 
         // Update USDC amounts on the pool account
-        ctx.accounts.pool_account.num_usdc_tokens = ctx.accounts.pool_account.num_usdc_tokens.checked_add(amount).unwrap();
+        ctx.accounts.pool_account.num_usdc_tokens = ctx
+            .accounts
+            .pool_account
+            .num_usdc_tokens
+            .checked_add(amount)
+            .unwrap();
 
         // Mint Redeemable to user Redeemable account.
         let seeds = &[
@@ -200,7 +218,10 @@ pub mod ido_pool {
         token::transfer(cpi_ctx, amount)?;
 
         // Update USDC amounts on the pool account
-        ctx.accounts.pool_account.num_usdc_tokens = ctx.accounts.pool_account.num_usdc_tokens
+        ctx.accounts.pool_account.num_usdc_tokens = ctx
+            .accounts
+            .pool_account
+            .num_usdc_tokens
             .checked_sub(amount)
             .unwrap();
 
@@ -223,13 +244,18 @@ pub mod ido_pool {
         // Calculate watermelon tokens due.
         let watermelon_amount = cmp::min(
             ctx.accounts.pool_watermelon.amount,
-            (amount as u128)
-                .checked_mul(ctx.accounts.pool_watermelon.amount as u128)
-                .unwrap()
-                .checked_div(ctx.accounts.redeemable_mint.supply as u128)
-                .unwrap()
-                .try_into()
-                .unwrap(),
+            cmp::min(
+                (amount as u128)
+                    .checked_mul(ctx.accounts.pool_watermelon.amount as u128)
+                    .unwrap()
+                    .checked_div(ctx.accounts.redeemable_mint.supply as u128)
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
+                amount
+                    .checked_mul(ctx.accounts.pool_account.floor_price)
+                    .unwrap(),
+            ),
         );
 
         // Burn the user's redeemable tokens.
@@ -283,6 +309,33 @@ pub mod ido_pool {
 
         Ok(())
     }
+
+    #[access_control(ido_over(&ctx.accounts.pool_account))]
+    pub fn withdraw_unsold_watermelon(ctx: Context<WithdrawUnsoldWatermelon>) -> Result<()> {
+        if Pubkey::from_str(ALLOWED_DEPLOYER).unwrap() != *ctx.accounts.payer.to_account_info().key
+        {
+            return Err(ErrorCode::InvalidParam.into());
+        }
+        // can only withdraw when everyone has redeemed
+        if ctx.accounts.redeemable_mint.supply > 0 {
+            return Err(ErrorCode::NotAllRedeemed.into());
+        }
+        let seeds = &[
+            ctx.accounts.pool_account.watermelon_mint.as_ref(),
+            &[ctx.accounts.pool_account.nonce],
+        ];
+        let signer = &[&seeds[..]];
+        let cpi_accounts = Transfer {
+            from: ctx.accounts.pool_watermelon.to_account_info(),
+            to: ctx.accounts.dest_watermelon.to_account_info(),
+            authority: ctx.accounts.pool_signer.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
+        token::transfer(cpi_ctx, ctx.accounts.pool_watermelon.amount)?;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -331,7 +384,7 @@ impl<'info> InitializePool<'info> {
 pub struct ExchangeUsdcForRedeemable<'info> {
     #[account(
         mut,
-        has_one = redeemable_mint, 
+        has_one = redeemable_mint,
         has_one = pool_usdc
     )]
     pub pool_account: Box<Account<'info, PoolAccount>>,
@@ -423,6 +476,25 @@ pub struct WithdrawPoolUsdc<'info> {
 }
 
 #[derive(Accounts)]
+pub struct WithdrawUnsoldWatermelon<'info> {
+    #[account(has_one = pool_watermelon, has_one = distribution_authority, has_one = redeemable_mint)]
+    pub pool_account: Box<Account<'info, PoolAccount>>,
+    #[account(seeds = [
+        pool_account.watermelon_mint.as_ref()],
+        bump=pool_account.nonce
+    )]
+    pub pool_signer: AccountInfo<'info>,
+    #[account(mut, constraint = pool_watermelon.owner == *pool_signer.key)]
+    pub pool_watermelon: Box<Account<'info, TokenAccount>>,
+    pub redeemable_mint: Box<Account<'info, Mint>>,
+    pub distribution_authority: Signer<'info>,
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub dest_watermelon: Box<Account<'info, TokenAccount>>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
 pub struct ModifyIdoTime<'info> {
     #[account(mut, has_one = distribution_authority)]
     pub pool_account: Box<Account<'info, PoolAccount>>,
@@ -457,6 +529,7 @@ pub struct PoolAccount {
     pub start_ido_ts: i64,
     pub end_ido_ts: i64,
     pub withdraw_melon_ts: i64,
+    pub floor_price: u64,
 }
 
 #[error]
@@ -485,6 +558,8 @@ pub enum ErrorCode {
     InvalidParam, // 6010, 0x177A
     #[msg("Exceed USDC")]
     ExceedUsdc, // 6011, 0x177B
+    #[msg("Not all buyers have redeemed their tokens yet")]
+    NotAllRedeemed, // 6012, 0x177C
 }
 
 // Access control modifiers.
@@ -500,9 +575,7 @@ fn future_start_time(start_ido_ts: i64) -> Result<()> {
 }
 
 // Asserts the IDO is in the first phase.
-fn unrestricted_phase<'info>(
-    pool_account: &Account<'info, PoolAccount>,
-) -> Result<()> {
+fn unrestricted_phase<'info>(pool_account: &Account<'info, PoolAccount>) -> Result<()> {
     let now_ts = Clock::get().unwrap().unix_timestamp;
 
     if !(pool_account.start_ido_ts < now_ts) {
@@ -516,9 +589,7 @@ fn unrestricted_phase<'info>(
 }
 
 // Asserts the IDO sale period has ended, based on the current timestamp.
-fn ido_over<'info>(
-    pool_account: &Account<'info, PoolAccount>,
-) -> Result<()> {
+fn ido_over<'info>(pool_account: &Account<'info, PoolAccount>) -> Result<()> {
     let now_ts = Clock::get().unwrap().unix_timestamp;
 
     if pool_account.num_usdc_tokens >= pool_account.max_usdc_tokens {

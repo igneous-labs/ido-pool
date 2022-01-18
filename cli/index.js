@@ -7,19 +7,19 @@ const IDL = require("../target/idl/ido_pool.json");
 const { PublicKey } = require("@solana/web3.js");
 
 process.env.ANCHOR_PROVIDER_URL = "http://localhost:8899";
-process.env.ANCHOR_WALLET = `${process.env.HOME}/.config/solana/id.json`;
+process.env.ANCHOR_WALLET = ".test-keypair.json";
 const provider = anchor.Provider.env();
 // Configure the client to use the local cluster.
 anchor.setProvider(provider);
 
 const program = new anchor.Program(
   IDL,
-  new PublicKey("3zSwHpEF8svwihadvnx7q2EagTyW1tvwn354gzvF5Zh4"),
+  new PublicKey("9Q95bA3Xr6sySTKgVPBXXwv53GWiH7js3M9C5DshSrE4"),
   provider,
 )
 
 async function initPool(
-  usdcMint, watermelonMint, creatorWatermelon, watermelonIdoAmount, usdcMaxAmount,
+  usdcMint, watermelonMint, creatorWatermelon, watermelonIdoAmount, usdcMaxAmount, floorPrice,
   startIdoTs, endIdoTs, withdrawMelonTs) {
 
   // We use the watermelon mint address as the seed, could use something else though.
@@ -53,6 +53,7 @@ async function initPool(
     startIdoTs,
     endIdoTs,
     withdrawMelonTs,
+    floorPrice,
     {
       accounts: {
         poolAccount: poolAccount.publicKey,
@@ -82,6 +83,18 @@ async function initPool(
   console.log(`Redeem Mint: ${redeemableMint.toBase58()}`);
   console.log(`🍉 Account: ${poolWatermelon.toBase58()}`);
   console.log(`💵 Account: ${poolUsdc.toBase58()}`);
+}
+
+async function fetchPool(poolAcc) {
+  const pool = await program.account.poolAccount.fetch(poolAcc);
+  for (const prop in pool) {
+    const val = pool[prop];
+    if (val instanceof anchor.web3.PublicKey || val instanceof anchor.BN) {
+      console.log(`${prop}: ${val.toString()}`);
+    } else {
+      console.log(`${prop}: ${val}`);
+    }
+  }
 }
 
 const usdc_mint = {
@@ -115,7 +128,7 @@ const cancel_duration = {
 
 yargs(hideBin(process.argv))
   .command(
-    'init <usdc_mint> <watermelon_mint> <watermelon_account> <watermelon_amount> <max_usdc_amount>',
+    'init <usdc_mint> <watermelon_mint> <watermelon_account> <watermelon_amount> <max_usdc_amount> <floor_price>',
     'initialize IDO pool',
     y => y
       .positional('usdc_mint', usdc_mint)
@@ -123,6 +136,7 @@ yargs(hideBin(process.argv))
       .positional('watermelon_account', { describe: 'the account supplying the token for sale 🍉', type: 'string' })
       .positional('watermelon_amount', { describe: 'the amount of tokens offered in this sale 🍉, in atomics', type: 'number' })
       .positional('max_usdc_amount', { decribe: 'the max amount of 💵 tokens that can be deposited before the auction ends, in atomics', type: 'number' })
+      .positional('floor_price', { decribe: 'the floor price of 🍉 tokens, in 🍉 atomics per 💵 atomic', type: 'number' })
       .option('start_time', start_time)
       .option('deposit_duration', deposit_duration)
       .option('cancel_duration', cancel_duration),
@@ -136,9 +150,17 @@ yargs(hideBin(process.argv))
         new anchor.web3.PublicKey(args.watermelon_account),
         new anchor.BN(args.watermelon_amount),
         new anchor.BN(args.max_usdc_amount),
+        new anchor.BN(args.floor_price),
         start,
         endIdo,
         withdrawMelon
       );
+    })
+  .command(
+    'fetch <pool>',
+    'fetch parameters for a ido pool',
+    y => y.positional('pool', { describe: "the pool to fetch", type: "string"}),
+    args => {
+      fetchPool(new anchor.web3.PublicKey(args.pool));
     })
   .argv;
