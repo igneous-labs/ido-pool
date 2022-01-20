@@ -59,3 +59,9 @@ node cli/index.js bid $ACC_POOL $ACC_USDC 100 $ACC_REDEEM
 ## Configuration
 
 To use the cli on other clusters than localnet set the env variable CLUSTER_RPC_URL=https://api.devnet.solana.com
+
+
+# NOTES FOR DUMMY ME
+
+1. DON'T FORGET TO CHANGE `ALLOWED_DEPLOYER` AND `declare_id!()`
+2. `node cli/index.js init EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v <SOCN MINT> <SOURCE SOCN ACCOUNT>  <SALE_AMOUNT_ATOMICS> <SALE_AMOUNT_DECIMALS * 300000> <1_000_000_000 / 60_000> --start_time <START_TIME> --deposit_duration <DEPOSIT_DURATION> --cancel_duration <WAIT_DURATION>`
